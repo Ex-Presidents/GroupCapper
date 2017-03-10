@@ -11,7 +11,8 @@ using UnityEngine;
 namespace GroupCapper
 {
 	public class Main : RocketPlugin<Config>
-	{ 
+	{
+        public static Main Instance;
 		private int maxPlayers;
 		private bool changePlayersGroup;
 		private Color chatColor;
@@ -20,16 +21,17 @@ namespace GroupCapper
 
 		protected override void Load()
 		{
+            Instance = this;
 			//Dank ass ASCII and some other shit
 			Rocket.Core.Logging.Logger.LogError("\n  _________                    __          \n /   _____/ ____  ____   _____/  |_ ___.__.\n \\_____  \\_/ ___\\/  _ \\ /  _ \\   __<   |  |\n /        \\  \\__(  <_> (  <_> |  |  \\___  |\n/_______  /\\___  \\____/ \\____/|__|  / ____|\n        \\/     \\/                   \\/     ");
 			Rocket.Core.Logging.Logger.Log("\n.___        \n|   | ______\n|   |/  ___/\n|   |\\___ \\ \n|___/____  >\n         \\/ ");
 			Rocket.Core.Logging.Logger.LogWarning("\n___.                  \n\\_ |__ _____    ____  \n | __ \\\\__  \\ _/ __ \\ \n | \\_\\ \\/ __ \\\\  ___/ \n |___  (____  /\\___  >\n     \\/     \\/     \\/ ");
 		
 
-			maxPlayers = this.Configuration.Instance.maxGroupSize;
-			changePlayersGroup = this.Configuration.Instance.changePlayerGroups;
-			chatColor =  UnturnedChat.GetColorFromName(this.Configuration.Instance.chatColor, Color.green);
-			notfiyPlayer = this.Configuration.Instance.notifyPlayer;
+			maxPlayers = Instance.Configuration.Instance.maxGroupSize;
+			changePlayersGroup = Instance.Configuration.Instance.changePlayerGroups;
+			chatColor =  UnturnedChat.GetColorFromName(Instance.Configuration.Instance.chatColor, Color.green);
+			notfiyPlayer = Instance.Configuration.Instance.notifyPlayer;
 
 			Rocket.Unturned.Permissions.UnturnedPermissions.OnJoinRequested += JoinT;
 			U.Events.OnPlayerConnected += Join;
@@ -37,13 +39,10 @@ namespace GroupCapper
 
 		protected override void Unload()
 		{
-
-			//Closing the events so we dont loop through code twice if a rocket reload were to happen
 			Rocket.Unturned.Permissions.UnturnedPermissions.OnJoinRequested -= JoinT;
 			U.Events.OnPlayerConnected -= Join;
 		}
-
-		//Translation Allow Users To Change The Messages in the translation file
+        
 		public override Rocket.API.Collections.TranslationList DefaultTranslations
 		{
 			get
@@ -114,9 +113,6 @@ namespace GroupCapper
 
 		private void Join(UnturnedPlayer player)
 		{
-			if (!notfiyPlayer)
-				return;
-			
 			//Notifying the player
 			if (toMessage.Contains(player.CSteamID))
 			{

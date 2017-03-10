@@ -1,0 +1,3 @@
+C:\Users\Kr4ken\Documents\GitHub\Ex-Presidents\GroupCapper\bin\Release\GroupCapper.dll
+C:\Users\Kr4ken\Documents\GitHub\Ex-Presidents\GroupCapper\obj\Release\GroupCapper.csprojResolveAssemblyReference.cache
+C:\Users\Kr4ken\Documents\GitHub\Ex-Presidents\GroupCapper\obj\Release\GroupCapper.dll
