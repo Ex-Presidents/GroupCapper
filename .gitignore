@@ -1,0 +1,14 @@
+*.suo
+*.pdb
+obj/Debug/CoreCompileInputs.cache
+*.cache
+obj/Debug/DesignTimeResolveAssemblyReferencesInput.cache
+*.txt
+*.cache
+obj/Debug/CoreCompileInputs.cache
+obj/Debug/build.force
+*.cache
+obj/Debug/GroupCapper.dll
+obj/Debug/DesignTimeResolveAssemblyReferencesInput.cache
+*.cache
+obj/Debug/DesignTimeResolveAssemblyReferencesInput.cache

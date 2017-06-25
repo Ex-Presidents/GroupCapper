@@ -6,6 +6,7 @@ using Rocket.Unturned;
 using Rocket.Unturned.Player;
 using System.Linq;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace GroupCapper
@@ -13,11 +14,10 @@ namespace GroupCapper
 	public class Main : RocketPlugin<Config>
 	{
         public static Main Instance;
-		private int maxPlayers;
-		private bool changePlayersGroup;
-		private Color chatColor;
-		private List<CSteamID> toMessage = new List<CSteamID>();
-		private bool notfiyPlayer;
+		private int _maxPlayers;
+		private bool _changePlayersGroup;
+		private Color _chatColor;
+		private bool _notfiyPlayer;
 
 		protected override void Load()
 		{
@@ -28,20 +28,45 @@ namespace GroupCapper
 			Rocket.Core.Logging.Logger.LogWarning("\n___.                  \n\\_ |__ _____    ____  \n | __ \\\\__  \\ _/ __ \\ \n | \\_\\ \\/ __ \\\\  ___/ \n |___  (____  /\\___  >\n     \\/     \\/     \\/ ");
 		
 
-			maxPlayers = Instance.Configuration.Instance.maxGroupSize;
-			changePlayersGroup = Instance.Configuration.Instance.changePlayerGroups;
-			chatColor =  UnturnedChat.GetColorFromName(Instance.Configuration.Instance.chatColor, Color.green);
-			notfiyPlayer = Instance.Configuration.Instance.notifyPlayer;
+			_maxPlayers = Instance.Configuration.Instance.maxGroupSize;
+			_changePlayersGroup = Instance.Configuration.Instance.changePlayerGroups;
+			_chatColor =  UnturnedChat.GetColorFromName(Instance.Configuration.Instance.chatColor, Color.green);
+			_notfiyPlayer = Instance.Configuration.Instance.notifyPlayer;
 
-			Rocket.Unturned.Permissions.UnturnedPermissions.OnJoinRequested += JoinT;
 			U.Events.OnPlayerConnected += Join;
+		    U.Events.OnPlayerDisconnected += Leave;
+
+
+            //If the plugin is reloaded, re add the player events
+		    try
+            { 
+		        foreach (var steamPlayer in Provider.clients)
+		        {
+		            steamPlayer.player.quests.groupIDChanged += GroupChanged;
+		        }
+            }
+            catch { }
 		}
 
-		protected override void Unload()
-		{
-			Rocket.Unturned.Permissions.UnturnedPermissions.OnJoinRequested -= JoinT;
+
+
+	    protected override void Unload()
+	    {
+	        U.Events.OnPlayerDisconnected -= Leave;
 			U.Events.OnPlayerConnected -= Join;
-		}
+
+
+            //If the plugin is unloaded remove the events
+	        try
+	        {
+	            foreach (var steamPlayer in Provider.clients)
+	            {
+	                steamPlayer.player.quests.groupIDChanged -= GroupChanged;
+	            }
+	        }
+	        catch { }
+
+        }
         
 		public override Rocket.API.Collections.TranslationList DefaultTranslations
 		{
@@ -54,73 +79,47 @@ namespace GroupCapper
 			}
 		}
 
-		//This is called before any sort of player is initialized (Ty Trojaner you're a gun for showing me steam pending)
-		void JoinT(CSteamID player, ref ESteamRejection? rejectionReason)
-		{
-			if (!changePlayersGroup)
-			{
-				rejectionReason = ESteamRejection.SERVER_FULL;
-				return;
-			}
 
-			//Put this in try so it doesnt spam errors/unload when something bad happens
-			try
-			{
-				SteamPending pending = null;
-				int playersInMyGroup = 0;
-
-				//Finding SteamPending (player which we can make changes to). 
-				pending = Provider.pending.Find((c) => c.playerID.steamID == player);
-				//Looping through steamplayers with the same group as the pending
-				for (int i = 0; i < Provider.clients.Count; i++) {
-					SteamPlayer ply = Provider.clients[i];
-
-					if(ply.playerID.group.m_SteamID != pending.playerID.group.m_SteamID || ply.playerID.group == CSteamID.Nil)
-						continue;
-					//This bit is untested idk how it works
-					playersInMyGroup++;
-
-				}
-
-
-				//Checking if there is anymore team members in the queueeueueue with the same group
-				for (int b = 0, index = int.MaxValue; b < Provider.pending.Count; b++)
-				{
-
-					//Finding the index of the player 
-					if (Provider.pending[b] == pending)
-					{
-						index = b;
-						continue;
-					}
-
-					//If the player is going to join before us to add to playersInMyGroup
-					if (b < index && Provider.pending[b].playerID.group == pending.playerID.group)
-						playersInMyGroup++;
-				}
-
-				//If players in group is greater than or equal to the max players set  it to nil (none)
-				if (playersInMyGroup >= maxPlayers)
-				{
-					pending.playerID.group = CSteamID.Nil;
-					//Adding To list so we can notify the player upon joining
-					toMessage.Add(pending.playerID.steamID);
-				}
-			}
-			catch { Rocket.Core.Logging.Logger.Log("Something bad happened while changing the players info"); }
+        private void Join(UnturnedPlayer player)
+        {
+            player.Player.quests.groupIDChanged += GroupChanged;
+            CheckRemoveGroup(player);
+			
 		}
 
+	    private void Leave(UnturnedPlayer player)
+	    {
+	        player.Player.quests.groupIDChanged -= GroupChanged;
+        }
 
-		private void Join(UnturnedPlayer player)
-		{
-			//Notifying the player
-			if (toMessage.Contains(player.CSteamID))
-			{
-				//Translation Allow Users To Change The Messages in the translation file
-				UnturnedChat.Say(player, Translate("reason"), chatColor);
-				toMessage.Remove(player.CSteamID);
-			}
-		}
+        private void GroupChanged(PlayerQuests sender, CSteamID oldgroupid, CSteamID newgroupid)
+	    {
+            if(newgroupid != CSteamID.Nil)
+                CheckRemoveGroup(UnturnedPlayer.FromPlayer(sender.player));
+	    }
+
+
+	    private void CheckRemoveGroup(UnturnedPlayer player)
+	    {
+	        if (GroupManager.getGroupInfo(player.Player.quests.groupID).members <= _maxPlayers) return;
+
+	        player.Player.quests.channel.send("tellSetGroup", ESteamCall.ALL, ESteamPacket.UPDATE_RELIABLE_BUFFER,
+	            new object[]
+	            {
+	                CSteamID.Nil,
+	                (byte) 0
+	            });
+
+	        var mGroupInfo = typeof(PlayerQuests).GetField("inMainGroup",
+	            BindingFlags.Instance | BindingFlags.NonPublic);
+	        if (mGroupInfo != null)
+	            mGroupInfo
+	                .SetValue(player.Player.quests, false);
+
+	        //Notifying the player
+	        if (_notfiyPlayer)
+	            UnturnedChat.Say(player, Translate("reason"), _chatColor);
+        }
 
 	}
 }
